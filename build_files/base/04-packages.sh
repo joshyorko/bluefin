@@ -154,6 +154,7 @@ EXCLUDED_PACKAGES=(
     gnome-software-rpm-ostree
     gnome-terminal-nautilus
     podman-docker
+    ublue-os-luks
     yelp
 )
 
