@@ -267,7 +267,7 @@ build $image="bluefin" $tag="testing" $flavor="main" rechunk="0" ghcr="0" pipeli
     # cache repository. This avoids needing a separate bluefin-cache package and ensures
     # GITHUB_TOKEN already has write access (it pushes the final image to this same ref).
     # Buildah stores cache entries as SHA-keyed blobs that coexist safely with named tags.
-    cache_ref="ghcr.io/{{ repo_organization }}/${image_name}"
+    cache_ref="ghcr.io/{{ repo_organization }}/${image_name}-cold-dnf-20260816"
     # Probe: use skopeo list-tags — succeeds on any accessible (public) repo, including
     # ones with only SHA-keyed blobs. Fails on 403 (private) or 404 (not yet pushed).
     cache_readable=false
