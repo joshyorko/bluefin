@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  packages: read
+  packages: write
 
 env:
   BASE_IMAGE: quay.io/fedora-ostree-desktops/silverblue:44@sha256:cff5f9468fda0771bd06d8a156766c3a2079c6a56208bfedc107c4fc3421623f
@@ -73,3 +73,71 @@ jobs:
           set -euo pipefail
           podman run --rm --entrypoint /usr/bin/rpmdb localhost/bluefin-rpmdb-base-common --verifydb
           podman run --rm --entrypoint /usr/bin/rpm localhost/bluefin-rpmdb-base-common -qa >/dev/null
+
+  extension-builder-cache-write:
+    name: Extension builder (cache write ${{ matrix.cache_write }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cache_write: [false, true]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: projectbluefin/actions/bootc-build/setup-runner@v1
+        with:
+          storage-backend: remove-software
+      - name: Build extension-builder with controlled cache write
+        shell: bash
+        env:
+          CACHE_WRITE: ${{ matrix.cache_write }}
+          GH_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          common_image=$(yq -r '.images[] | select(.name == "common") | .image' image-versions.yml)
+          common_sha=$(yq -r '.images[] | select(.name == "common") | .digest' image-versions.yml)
+          brew_image=$(yq -r '.images[] | select(.name == "brew") | .image' image-versions.yml)
+          brew_sha=$(yq -r '.images[] | select(.name == "brew") | .digest' image-versions.yml)
+          akmods_flavor=main
+          fedora_version=44
+          kernel_release=$(skopeo inspect --retry-times 3 \
+            "docker://ghcr.io/ublue-os/akmods:${akmods_flavor}-${fedora_version}" \
+            | jq -r '.Labels["ostree.linux"]')
+          test -n "${kernel_release}" && test "${kernel_release}" != "null"
+
+          build_args=(
+            --no-cache
+            --target extension-builder
+            --build-arg "BASE_IMAGE_REF=${BASE_IMAGE}"
+            --build-arg "COMMON_IMAGE=${common_image}"
+            --build-arg "COMMON_IMAGE_SHA=${common_sha}"
+            --build-arg "BREW_IMAGE=${brew_image}"
+            --build-arg "BREW_IMAGE_SHA=${brew_sha}"
+            --build-arg "AKMODS_FLAVOR=${akmods_flavor}"
+            --build-arg "FEDORA_MAJOR_VERSION=${fedora_version}"
+            --build-arg IMAGE_NAME=bluefin
+            --build-arg IMAGE_VENDOR=joshyorko
+            --build-arg "KERNEL=${kernel_release}"
+            --build-arg UBLUE_IMAGE_TAG=testing
+            --secret id=GITHUB_TOKEN,env=GITHUB_TOKEN
+            --tag "localhost/bluefin-extension-builder:${CACHE_WRITE}"
+          )
+          if [[ "${CACHE_WRITE}" == "true" ]]; then
+            printf '%s' "${GITHUB_TOKEN}" | podman login ghcr.io \
+              --username "${GH_ACTOR}" --password-stdin
+            build_args+=(
+              --cache-to
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/bluefin-rpmdb-ab-${GITHUB_RUN_ID}"
+            )
+          fi
+
+          podman build "${build_args[@]}" .
+      - name: Verify extension-builder RPMDB
+        shell: bash
+        env:
+          CACHE_WRITE: ${{ matrix.cache_write }}
+        run: |
+          set -euo pipefail
+          image="localhost/bluefin-extension-builder:${CACHE_WRITE}"
+          podman run --rm --entrypoint /usr/bin/rpmdb "${image}" --verifydb
+          podman run --rm --entrypoint /usr/bin/rpm "${image}" -qa >/dev/null
