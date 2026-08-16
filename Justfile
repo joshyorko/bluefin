@@ -1,4 +1,4 @@
-repo_organization := "projectbluefin"
+repo_organization := "joshyorko"
 base_image_org := "quay.io/fedora-ostree-desktops"
 base_image_name := "silverblue"
 # common_image and brew_image refs are read from image-versions.yml at build time
