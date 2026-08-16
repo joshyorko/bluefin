@@ -62,6 +62,9 @@ ARG UBLUE_IMAGE_TAG="stable"
 ARG IMAGE_FLAVOR=""
 ARG BUILD_FILES_SHA=""
 
+# Diagnostic guard: verify the pinned base image before any Bluefin package work.
+RUN rpmdb --verifydb
+
 # Stage 1 — Package installs only (cache key: build_files/)
 # Runs the package-install layer (`03-packages.sh`, `04-install-kernel-akmods.sh`,
 # `05-override-install.sh`) before any system_files overlay work.
@@ -89,11 +92,15 @@ RUN --mount=type=cache,dst=/var/cache/libdnf5 \
         /ctx/build_files/base/05-override-install.sh \
     '
 
+# Diagnostic guard: identify whether Stage 1 package work introduced RPMDB damage.
+RUN rpmdb --verifydb
+
 # hadolint ignore=DL3006
 FROM base-common AS extension-builder
 
 RUN --mount=type=cache,dst=/var/cache/libdnf5 \
     bash -euo pipefail -c ' \
+        rpmdb --verifydb && \
         dnf5 -y install glib2-devel meson sassc cmake dbus-devel \
     '
 

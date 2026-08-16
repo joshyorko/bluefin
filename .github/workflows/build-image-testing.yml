@@ -58,7 +58,7 @@ jobs:
         ${{
           github.event_name == 'pull_request'
           && needs.detect-changes.outputs.image_flavors
-          || '["main", "nvidia"]'
+          || '["main"]'
         }}
       stream_name: testing
       # Gate the mutable :testing pointer behind post-testing-e2e.yml's
